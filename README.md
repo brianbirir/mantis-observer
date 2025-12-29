@@ -1,6 +1,6 @@
 # Mantis
 
-An easy to deploy observability platform based on the LGTM stack i.e. Loki, Grafana, Tempo and proMetheus.
+An easy to deploy observability platform based on the LGTM stack i.e. Loki, Grafana, Tempo and proMetheus. This is a personal project to help me monitor personal systems and applications but feel free to use it for your own needs.
 
 ## Features
 
