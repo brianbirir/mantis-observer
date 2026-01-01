@@ -16,12 +16,204 @@ This document outlines the implementation plan for the Mantis observability plat
 
 ### Data Flow Architecture
 
+#### ASCII Diagram
+
 ```
-Flask App → OTel Collector → Prometheus (metrics)
-                           → Loki (logs)
-                           → Tempo (traces)
-                           ↓
-                    Grafana (visualization)
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         MANTIS OBSERVABILITY STACK                          │
+│                        (LGTM + OpenTelemetry Collector)                     │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌──────────────────┐
+│   Flask Test App │
+│  (Port: 5000)    │
+│                  │
+│  - Metrics       │
+│  - Logs          │
+│  - Traces        │
+└────────┬─────────┘
+         │
+         │ OTLP/gRPC or OTLP/HTTP
+         │ (Port: 4317/4318)
+         │
+         ▼
+┌────────────────────────────────────────────┐
+│   OpenTelemetry Collector                  │
+│   (Port: 4317, 4318, 8888, 8889)          │
+│                                            │
+│  ┌──────────────────────────────────────┐ │
+│  │          RECEIVERS                   │ │
+│  │  - OTLP (gRPC: 4317, HTTP: 4318)    │ │
+│  └──────────────────────────────────────┘ │
+│                    │                       │
+│                    ▼                       │
+│  ┌──────────────────────────────────────┐ │
+│  │         PROCESSORS                   │ │
+│  │  - Batch                             │ │
+│  │  - Resource Detection                │ │
+│  │  - Attributes                        │ │
+│  └──────────────────────────────────────┘ │
+│                    │                       │
+│         ┌──────────┴──────────┐           │
+│         ▼          ▼          ▼           │
+│  ┌──────────┐ ┌────────┐ ┌─────────┐     │
+│  │ Metrics  │ │  Logs  │ │ Traces  │     │
+│  │ Pipeline │ │Pipeline│ │ Pipeline│     │
+│  └──────────┘ └────────┘ └─────────┘     │
+│         │          │          │           │
+│         ▼          ▼          ▼           │
+│  ┌──────────────────────────────────────┐ │
+│  │          EXPORTERS                   │ │
+│  │  - Prometheus (Remote Write/Scrape) │ │
+│  │  - Loki (HTTP Push)                  │ │
+│  │  - OTLP (for Tempo)                  │ │
+│  └──────────────────────────────────────┘ │
+└──────┬─────────────┬─────────────┬────────┘
+       │             │             │
+       │             │             │
+       ▼             ▼             ▼
+┌────────────┐ ┌───────────┐ ┌──────────┐
+│ Prometheus │ │   Loki    │ │  Tempo   │
+│ (Port:9090)│ │(Port:3100)│ │(Port:3200│
+│            │ │           │ │  & 4317) │
+│ - Metrics  │ │ - Logs    │ │ - Traces │
+│ - Alerting │ │ - Queries │ │ - Queries│
+└────────────┘ └───────────┘ └──────────┘
+       │             │             │
+       │             │             │
+       └─────────────┼─────────────┘
+                     │
+                     ▼
+              ┌─────────────┐
+              │   Grafana   │
+              │ (Port: 3000)│
+              │             │
+              │ Datasources:│
+              │ - Prometheus│
+              │ - Loki      │
+              │ - Tempo     │
+              │             │
+              │ Dashboards: │
+              │ - Metrics   │
+              │ - Logs      │
+              │ - Traces    │
+              │ - Unified   │
+              └─────────────┘
+                     │
+                     ▼
+              ┌─────────────┐
+              │    User     │
+              │  (Browser)  │
+              └─────────────┘
+
+Legend:
+  → Data Flow
+  ┌─┐ Component
+  │ │ Service
+  └─┘
+```
+
+#### Mermaid Diagram
+
+```mermaid
+graph TB
+    subgraph "Application Layer"
+        FlaskApp[Flask Test App<br/>Port: 5000<br/>- Metrics<br/>- Logs<br/>- Traces]
+    end
+
+    subgraph "Collection Layer"
+        OTel[OpenTelemetry Collector<br/>Ports: 4317, 4318, 8888, 8889]
+
+        subgraph "OTel Components"
+            Receivers[Receivers<br/>- OTLP gRPC: 4317<br/>- OTLP HTTP: 4318]
+            Processors[Processors<br/>- Batch<br/>- Resource Detection<br/>- Attributes]
+            Exporters[Exporters<br/>- Prometheus<br/>- Loki<br/>- OTLP]
+        end
+    end
+
+    subgraph "Storage Layer"
+        Prometheus[Prometheus<br/>Port: 9090<br/>Metrics & Alerting]
+        Loki[Loki<br/>Port: 3100<br/>Log Aggregation]
+        Tempo[Tempo<br/>Ports: 3200, 4317<br/>Distributed Tracing]
+    end
+
+    subgraph "Visualization Layer"
+        Grafana[Grafana<br/>Port: 3000<br/>Dashboards & Queries]
+    end
+
+    subgraph "User Layer"
+        User[User<br/>Browser]
+    end
+
+    FlaskApp -->|OTLP/gRPC or HTTP| OTel
+    OTel --> Receivers
+    Receivers --> Processors
+    Processors --> Exporters
+
+    Exporters -->|Metrics| Prometheus
+    Exporters -->|Logs| Loki
+    Exporters -->|Traces| Tempo
+
+    Prometheus --> Grafana
+    Loki --> Grafana
+    Tempo --> Grafana
+
+    Grafana --> User
+
+    style FlaskApp fill:#e1f5ff
+    style OTel fill:#fff4e1
+    style Prometheus fill:#ffe1e1
+    style Loki fill:#e1ffe1
+    style Tempo fill:#f5e1ff
+    style Grafana fill:#ffe1f5
+    style User fill:#f0f0f0
+```
+
+#### Detailed Component Interaction
+
+```mermaid
+sequenceDiagram
+    participant Flask as Flask App
+    participant OTel as OTel Collector
+    participant Prom as Prometheus
+    participant Loki as Loki
+    participant Tempo as Tempo
+    participant Grafana as Grafana
+    participant User as User
+
+    Note over Flask: Generate Telemetry
+    Flask->>Flask: Execute /api/users request
+
+    Note over Flask,OTel: Send Telemetry via OTLP
+    Flask->>OTel: Metrics (OTLP)
+    Flask->>OTel: Logs (OTLP)
+    Flask->>OTel: Traces (OTLP)
+
+    Note over OTel: Process & Route
+    OTel->>OTel: Batch Processing
+    OTel->>OTel: Add Resource Attributes
+
+    Note over OTel,Tempo: Export to Backends
+    OTel->>Prom: Export Metrics (Remote Write)
+    OTel->>Loki: Export Logs (HTTP)
+    OTel->>Tempo: Export Traces (OTLP)
+
+    Note over Prom,Tempo: Store Data
+    Prom->>Prom: Store Time Series
+    Loki->>Loki: Store Log Streams
+    Tempo->>Tempo: Store Trace Data
+
+    Note over User,Grafana: Query & Visualize
+    User->>Grafana: Open Dashboard
+    Grafana->>Prom: PromQL Query
+    Grafana->>Loki: LogQL Query
+    Grafana->>Tempo: TraceQL Query
+
+    Prom-->>Grafana: Metrics Data
+    Loki-->>Grafana: Logs Data
+    Tempo-->>Grafana: Traces Data
+
+    Grafana-->>User: Display Unified Dashboard
 ```
 
 ### Unified Flask Test Application
