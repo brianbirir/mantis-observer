@@ -1,0 +1,14 @@
+# Grafana Dashboard Provisioning for Mantis LGTM Stack
+apiVersion: 1
+
+providers:
+  - name: 'Mantis Dashboards'
+    orgId: 1
+    folder: 'Mantis'
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 10
+    allowUiUpdates: true
+    options:
+      path: /etc/grafana/provisioning/dashboards
+      foldersFromFilesStructure: true

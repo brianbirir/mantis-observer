@@ -1,0 +1,116 @@
+# Tempo Configuration for Mantis LGTM Stack
+server:
+  http_listen_port: 3200
+  log_level: info
+
+# Distributor configuration
+distributor:
+  receivers:
+    otlp:
+      protocols:
+        grpc:
+          endpoint: 0.0.0.0:4317
+        http:
+          endpoint: 0.0.0.0:4318
+
+# Ingester configuration
+ingester:
+  max_block_duration: 5m
+  max_block_bytes: 1_000_000
+  complete_block_timeout: 10m
+  trace_idle_period: 10s
+  flush_check_period: 10s
+
+# Compactor configuration
+compactor:
+  compaction:
+    block_retention: 720h  # 30 days
+    compacted_block_retention: 1h
+    compaction_window: 1h
+    max_compaction_objects: 1000000
+    max_block_bytes: 100_000_000
+    retention_concurrency: 10
+
+# Metrics generator (optional, for generating metrics from traces)
+metrics_generator:
+  registry:
+    external_labels:
+      source: tempo
+      cluster: mantis
+  storage:
+    path: /tmp/tempo/generator/wal
+    remote_write:
+      - url: http://prometheus:9090/api/v1/write
+        send_exemplars: true
+  # Span metrics
+  processor:
+    span_metrics:
+      # Generate metrics for all services
+      dimensions:
+        - name: http.method
+        - name: http.status_code
+        - name: service.name
+      # Enable histogram metrics
+      enable_target_info: true
+  # Service graphs
+  # processor:
+  #   service_graphs:
+  #     dimensions:
+  #       - name: service.name
+  #     max_items: 10000
+
+# Storage configuration
+storage:
+  trace:
+    backend: local
+    wal:
+      path: /tmp/tempo/wal
+    local:
+      path: /tmp/tempo/blocks
+    pool:
+      max_workers: 100
+      queue_depth: 10000
+
+# Query frontend configuration
+query_frontend:
+  search:
+    max_duration: 0s  # 0 means unlimited
+    query_backend_after: 0s  # Search both recent and backend storage
+    max_result_limit: 20
+  # Trace by ID lookup timeout
+  trace_by_id:
+    query_timeout: 10s
+
+# Querier configuration
+querier:
+  max_concurrent_queries: 20
+  search:
+    prefer_self: 10  # Number of sub-queries to perform locally before hitting backend
+  frontend_worker:
+    frontend_address: tempo:9095
+    parallelism: 2
+
+# Overrides configuration (per-tenant limits)
+overrides:
+  defaults:
+    # Ingestion limits
+    ingestion_rate_limit_bytes: 15_000_000  # 15 MB/s
+    ingestion_burst_size_bytes: 20_000_000  # 20 MB
+    max_traces_per_user: 10000
+    max_bytes_per_trace: 5_000_000  # 5 MB
+
+    # Query limits
+    max_search_duration: 0s  # unlimited
+    max_bytes_per_tag_values_query: 5_000_000  # 5 MB
+
+    # Block retention
+    block_retention: 720h  # 30 days
+
+# Memberlist (for distributed deployments, using single instance for now)
+memberlist:
+  abort_if_cluster_join_fails: false
+  join_members: []
+
+# Usage report (disable for privacy)
+usage_report:
+  reporting_enabled: false

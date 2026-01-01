@@ -1,0 +1,92 @@
+# Grafana Datasource Provisioning for Mantis LGTM Stack
+apiVersion: 1
+
+datasources:
+  # Prometheus datasource for metrics
+  - name: Prometheus
+    type: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true
+    editable: true
+    jsonData:
+      timeInterval: 15s
+      httpMethod: POST
+      # Exemplars configuration for trace correlation
+      exemplarTraceIdDestinations:
+        - name: trace_id
+          datasourceUid: tempo
+    version: 1
+
+  # Loki datasource for logs
+  - name: Loki
+    type: loki
+    access: proxy
+    url: http://loki:3100
+    editable: true
+    jsonData:
+      maxLines: 1000
+      # Derived fields for trace correlation
+      derivedFields:
+        - datasourceUid: tempo
+          matcherRegex: "trace_id=(\\w+)"
+          name: TraceID
+          url: "$${__value.raw}"
+        - datasourceUid: tempo
+          matcherRegex: "traceID=(\\w+)"
+          name: TraceID
+          url: "$${__value.raw}"
+        - datasourceUid: tempo
+          matcherRegex: '"trace_id"\\s*:\\s*"(\\w+)"'
+          name: TraceID
+          url: "$${__value.raw}"
+    version: 1
+
+  # Tempo datasource for traces
+  - name: Tempo
+    type: tempo
+    access: proxy
+    url: http://tempo:3200
+    uid: tempo
+    editable: true
+    jsonData:
+      # Configure trace to logs
+      tracesToLogs:
+        datasourceUid: loki
+        tags: ['service.name', 'http.method', 'http.status_code']
+        mappedTags:
+          - key: service.name
+            value: service_name
+        mapTagNamesEnabled: true
+        spanStartTimeShift: '-1m'
+        spanEndTimeShift: '1m'
+        filterByTraceID: true
+        filterBySpanID: false
+
+      # Configure trace to metrics
+      tracesToMetrics:
+        datasourceUid: prometheus
+        tags:
+          - key: service.name
+            value: service_name
+          - key: http.method
+          - key: http.status_code
+        spanStartTimeShift: '-1m'
+        spanEndTimeShift: '1m'
+
+      # Service graph configuration
+      serviceMap:
+        datasourceUid: prometheus
+
+      # Node graph configuration
+      nodeGraph:
+        enabled: true
+
+      # Search configuration
+      search:
+        hide: false
+
+      # Loki search configuration
+      lokiSearch:
+        datasourceUid: loki
+    version: 1

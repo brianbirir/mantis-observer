@@ -1,0 +1,144 @@
+# OpenTelemetry Collector Configuration for Mantis LGTM Stack
+# This collector receives metrics, logs, and traces via OTLP and routes them to the appropriate backends
+
+receivers:
+  # OTLP receiver for metrics, logs, and traces
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+        cors:
+          allowed_origins:
+            - "http://*"
+            - "https://*"
+
+  # Prometheus receiver to scrape metrics (optional)
+  prometheus:
+    config:
+      scrape_configs:
+        - job_name: 'otel-collector'
+          scrape_interval: 10s
+          static_configs:
+            - targets: ['localhost:8888']
+
+processors:
+  # Batch processor for efficient data handling
+  batch:
+    timeout: 10s
+    send_batch_size: 1024
+    send_batch_max_size: 2048
+
+  # Resource detection processor
+  resourcedetection:
+    detectors: [env, system, docker]
+    timeout: 5s
+    override: false
+
+  # Attributes processor for adding/modifying labels
+  attributes:
+    actions:
+      - key: service.instance.id
+        action: upsert
+        from_attribute: host.name
+      - key: deployment.environment
+        value: "development"
+        action: insert
+
+  # Memory limiter to prevent OOM
+  memory_limiter:
+    check_interval: 1s
+    limit_mib: 512
+    spike_limit_mib: 128
+
+  # Resource processor to add common attributes
+  resource:
+    attributes:
+      - key: service.namespace
+        value: "mantis"
+        action: upsert
+
+exporters:
+  # Prometheus exporter (for scraping)
+  prometheus:
+    endpoint: "0.0.0.0:8889"
+    namespace: mantis
+    const_labels:
+      environment: development
+
+  # Prometheus Remote Write exporter
+  prometheusremotewrite:
+    endpoint: "http://prometheus:9090/api/v1/write"
+    tls:
+      insecure: true
+    resource_to_telemetry_conversion:
+      enabled: true
+
+  # Loki exporter for logs
+  loki:
+    endpoint: "http://loki:3100/loki/api/v1/push"
+    tls:
+      insecure: true
+    labels:
+      resource:
+        service.name: "service_name"
+        service.namespace: "service_namespace"
+      attributes:
+        level: "level"
+        http.method: "http_method"
+        http.status_code: "http_status_code"
+
+  # OTLP exporter for Tempo (traces)
+  otlp/tempo:
+    endpoint: tempo:4317
+    tls:
+      insecure: true
+
+  # Logging exporter for debugging (optional)
+  logging:
+    verbosity: detailed
+    sampling_initial: 5
+    sampling_thereafter: 200
+
+extensions:
+  # Health check extension
+  health_check:
+    endpoint: 0.0.0.0:13133
+
+  # Performance profiler
+  pprof:
+    endpoint: 0.0.0.0:1777
+
+  # zpages for debugging
+  zpages:
+    endpoint: 0.0.0.0:55679
+
+service:
+  extensions: [health_check, pprof, zpages]
+
+  pipelines:
+    # Metrics pipeline
+    metrics:
+      receivers: [otlp, prometheus]
+      processors: [memory_limiter, resourcedetection, resource, attributes, batch]
+      exporters: [prometheusremotewrite, prometheus, logging]
+
+    # Logs pipeline
+    logs:
+      receivers: [otlp]
+      processors: [memory_limiter, resourcedetection, resource, attributes, batch]
+      exporters: [loki, logging]
+
+    # Traces pipeline
+    traces:
+      receivers: [otlp]
+      processors: [memory_limiter, resourcedetection, resource, attributes, batch]
+      exporters: [otlp/tempo, logging]
+
+  telemetry:
+    logs:
+      level: info
+    metrics:
+      level: detailed
+      address: 0.0.0.0:8888
