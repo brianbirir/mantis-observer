@@ -70,6 +70,7 @@ services:
   tempo:
     image: grafana/tempo:latest
     container_name: mantis-tempo
+    user: "0"  # Run as root to avoid permission issues with volume directories
     command: -config.file=/etc/tempo/tempo-config.yml
     volumes:
       - ./config/tempo/tempo-config.yml:/etc/tempo/tempo-config.yml
