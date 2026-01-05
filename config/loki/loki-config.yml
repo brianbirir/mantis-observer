@@ -18,6 +18,12 @@ common:
     kvstore:
       store: inmemory
 
+# Distributor configuration for OTLP ingestion
+distributor:
+  ring:
+    kvstore:
+      store: inmemory
+
 # Schema configuration
 schema_config:
   configs:

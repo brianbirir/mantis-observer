@@ -1,0 +1,139 @@
+# Mantis LGTM Stack - Git Ignore
+
+# ============================================
+# Environment Files
+# ============================================
+.env
+.env.local
+.env.*.local
+
+# ============================================
+# Docker & Volumes
+# ============================================
+# Docker volumes are managed by Docker Compose
+# but exclude any local data directories if created
+data/
+volumes/
+
+# ============================================
+# Logs
+# ============================================
+*.log
+logs/
+*.log.*
+
+# ============================================
+# Python
+# ============================================
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual environments
+venv/
+ENV/
+env/
+.venv
+
+# PyCharm
+.idea/
+
+# VS Code
+.vscode/
+*.code-workspace
+
+# ============================================
+# Grafana
+# ============================================
+# Grafana runtime data (if running locally)
+grafana/data/
+grafana.db
+
+# ============================================
+# Prometheus
+# ============================================
+# Prometheus data directory (if running locally)
+prometheus/data/
+
+# ============================================
+# Loki
+# ============================================
+# Loki data directory (if running locally)
+loki/data/
+
+# ============================================
+# Tempo
+# ============================================
+# Tempo data directory (if running locally)
+tempo/data/
+
+# ============================================
+# Backup Files
+# ============================================
+*.backup
+*.bak
+backups/
+*.tar.gz
+*.zip
+
+# ============================================
+# OS Files
+# ============================================
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Linux
+*~
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# ============================================
+# Temporary Files
+# ============================================
+*.tmp
+*.temp
+tmp/
+temp/
+
+# ============================================
+# SSH Keys
+# ============================================
+*.pem
+*.key
+id_rsa
+id_rsa.pub
+
+# ============================================
+# Secrets & Credentials
+# ============================================
+secrets/
+credentials/
+*.secret

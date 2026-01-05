@@ -32,7 +32,7 @@ processors:
 
   # Resource detection processor
   resourcedetection:
-    detectors: [env, system, docker]
+    detectors: [env, system]
     timeout: 5s
     override: false
 
@@ -75,19 +75,11 @@ exporters:
     resource_to_telemetry_conversion:
       enabled: true
 
-  # Loki exporter for logs
-  loki:
-    endpoint: "http://loki:3100/loki/api/v1/push"
+  # Loki exporter for logs (using OTLP HTTP)
+  otlphttp/loki:
+    endpoint: "http://loki:3100/otlp"
     tls:
       insecure: true
-    labels:
-      resource:
-        service.name: "service_name"
-        service.namespace: "service_namespace"
-      attributes:
-        level: "level"
-        http.method: "http_method"
-        http.status_code: "http_status_code"
 
   # OTLP exporter for Tempo (traces)
   otlp/tempo:
@@ -95,8 +87,8 @@ exporters:
     tls:
       insecure: true
 
-  # Logging exporter for debugging (optional)
-  logging:
+  # Debug exporter for debugging (optional)
+  debug:
     verbosity: detailed
     sampling_initial: 5
     sampling_thereafter: 200
@@ -122,23 +114,28 @@ service:
     metrics:
       receivers: [otlp, prometheus]
       processors: [memory_limiter, resourcedetection, resource, attributes, batch]
-      exporters: [prometheusremotewrite, prometheus, logging]
+      exporters: [prometheusremotewrite, prometheus, debug]
 
     # Logs pipeline
     logs:
       receivers: [otlp]
       processors: [memory_limiter, resourcedetection, resource, attributes, batch]
-      exporters: [loki, logging]
+      exporters: [otlphttp/loki, debug]
 
     # Traces pipeline
     traces:
       receivers: [otlp]
       processors: [memory_limiter, resourcedetection, resource, attributes, batch]
-      exporters: [otlp/tempo, logging]
+      exporters: [otlp/tempo, debug]
 
   telemetry:
     logs:
       level: info
     metrics:
       level: detailed
-      address: 0.0.0.0:8888
+      readers:
+        - pull:
+            exporter:
+              prometheus:
+                host: 0.0.0.0
+                port: 8888
