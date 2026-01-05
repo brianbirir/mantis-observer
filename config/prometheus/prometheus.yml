@@ -67,14 +67,3 @@ scrape_configs:
       - targets: ['flask-app:5000']
         labels:
           service: 'flask-test-app'
-
-# Storage configuration
-storage:
-  tsdb:
-    path: /prometheus
-    retention:
-      time: 15d
-      size: 10GB
-
-# Remote write receiver is enabled via command line flag
-# --enable-feature=remote-write-receiver
