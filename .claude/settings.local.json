@@ -4,7 +4,9 @@
       "Bash(mkdir:*)",
       "Bash(docker:*)",
       "Bash(docker-compose:*)",
-      "Bash(tree:*)"
+      "Bash(tree:*)",
+      "Bash(curl:*)",
+      "Bash(python3:*)"
     ]
   }
 }

@@ -70,6 +70,12 @@ exporters:
   # Prometheus Remote Write exporter
   prometheusremotewrite:
     endpoint: "http://prometheus:9090/api/v1/write"
+    timeout: 30s
+    retry_on_failure:
+      enabled: true
+      initial_interval: 5s
+      max_interval: 30s
+      max_elapsed_time: 300s
     tls:
       insecure: true
     resource_to_telemetry_conversion:
@@ -78,12 +84,24 @@ exporters:
   # Loki exporter for logs (using OTLP HTTP)
   otlphttp/loki:
     endpoint: "http://loki:3100/otlp"
+    timeout: 30s
+    retry_on_failure:
+      enabled: true
+      initial_interval: 5s
+      max_interval: 30s
+      max_elapsed_time: 300s
     tls:
       insecure: true
 
   # OTLP exporter for Tempo (traces)
   otlp/tempo:
     endpoint: tempo:4317
+    timeout: 30s
+    retry_on_failure:
+      enabled: true
+      initial_interval: 5s
+      max_interval: 30s
+      max_elapsed_time: 300s
     tls:
       insecure: true
 
